@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import type { Role, Ride } from './types';
+import type { Ride, RideRequestInput, Role } from './types';
 import RiderView from './components/RiderView';
 import DriverView from './components/DriverView';
 import { User, Car } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { assignDriver, createRideId, estimateRideDetails, getRideOption } from './lib/rides';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -14,23 +15,37 @@ function App() {
   const [role, setRole] = useState<Role>('rider');
   const [rides, setRides] = useState<Ride[]>([]);
 
-  const handleRequestRide = (pickup: string, destination: string, price: number) => {
+  const handleRequestRide = ({ pickup, destination, tierId, paymentMethod }: RideRequestInput) => {
+    const option = getRideOption(tierId);
+    const quote = estimateRideDetails(pickup, destination, tierId);
     const newRide: Ride = {
-      id: Math.random().toString(36).substring(7),
+      id: createRideId(),
       riderId: 'rider-1',
       pickup,
       destination,
-      price,
+      tierId,
+      tierName: option.name,
+      price: quote.total,
+      distanceKm: quote.distanceKm,
+      pickupEtaMinutes: quote.pickupEtaMinutes,
+      tripDurationMinutes: quote.tripDurationMinutes,
+      paymentMethod,
+      fareBreakdown: quote.fareBreakdown,
       status: 'pending',
     };
-    setRides([...rides, newRide]);
+    setRides((currentRides) => [...currentRides, newRide]);
   };
 
   const handleAcceptRide = (rideId: string) => {
-    setRides(
-      rides.map((r) =>
-        r.id === rideId ? { ...r, status: 'accepted', driverId: 'driver-1' } : r
-      )
+    setRides((currentRides) =>
+      currentRides.map((r) => {
+        if (r.id !== rideId) {
+          return r;
+        }
+
+        const driver = assignDriver(r);
+        return { ...r, status: 'accepted', driverId: driver.id, driver };
+      })
     );
   };
 
@@ -39,12 +54,15 @@ function App() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 pb-20">
+    <div className="min-h-screen bg-slate-100 pb-20">
       <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-black italic tracking-tighter text-black">
-            UBER <span className="text-blue-600 not-italic">PNG</span>
-          </h1>
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-black">
+              FALEX <span className="text-blue-600">RIDE</span>
+            </h1>
+            <p className="text-xs text-gray-500">Port Moresby urban ride requests</p>
+          </div>
 
           <div className="flex bg-gray-100 p-1 rounded-xl">
             <button
@@ -71,7 +89,7 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4">
+      <main className="mx-auto max-w-6xl px-4">
         {role === 'rider' ? (
           <RiderView
             onRequestRide={handleRequestRide}
@@ -86,7 +104,7 @@ function App() {
       </main>
 
       <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 py-3 px-4 text-center text-xs text-gray-400">
-        <p>© 2026 Uber PNG - Serving Port Moresby</p>
+        <p>© 2026 FALEX - Serving Port Moresby</p>
       </footer>
     </div>
   );
